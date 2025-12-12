@@ -62,7 +62,8 @@ mod tests {
 
     #[test]
     fn instance_password() {
-        let test_password = Password::new("test.com".to_string(), "test".to_string(), None, None);
+        let _test_password = Password::new("test.com".to_string(), "test".to_string(), None, None);
+
     }
 
     #[test]
