@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fs, io, path::Path};
 
 use rand::{RngCore, rngs::OsRng};
 use serde::{Deserialize, Serialize};
@@ -53,10 +53,26 @@ impl User {
         
         self.passwords.insert(website, password_obj);
     }
+
+    pub fn save_to_file(&self, path: &Path) -> io::Result<()> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let json = serde_json::to_string_pretty(self)?;
+        fs::write(path, json.as_bytes())
+    }
+
+    pub fn load_from_file(path: &Path) -> io::Result<Self> {
+        let json_string = fs::read_to_string(path).map_err(|e| io::Error::other(e))?;
+        let user = serde_json::from_str(&json_string).map_err(|e| io::Error::other(e))?;
+        Ok(user)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use tempfile::tempdir;
+
     use crate::authentication::user::User;
 
     #[test]
@@ -98,4 +114,38 @@ mod tests {
         user.add_password("test.com".to_string(), "Hello123".to_string(), "12342".to_string());
         assert_eq!(key.to_string(), hex::encode(user.derived_key.unwrap()));
     }
+    
+    #[test]
+    fn save_and_load_user() {
+
+        // Create temp directory
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("user.json");
+        
+        // Create user
+        let mut user = User::new(None, None);
+        user.set_password("Hello world!");
+        user.add_password(
+            "example.com".to_string(),
+            "Secret123".to_string(),
+            "username".to_string(),
+        );
+    
+        // Save user
+        user.save_to_file(&file_path).unwrap();
+    
+        // Load user
+        let loaded_user = User::load_from_file(&file_path).unwrap();
+    
+        // Assertions
+        assert!(loaded_user.password_hash.is_some());
+        assert!(loaded_user.derived_salt.is_some());
+    
+        // derived_key should NOT be saved
+        assert!(loaded_user.derived_key.is_none());
+    
+        // passwords should persist
+        assert!(loaded_user.passwords.contains_key("example.com"));
+}
+
 }
